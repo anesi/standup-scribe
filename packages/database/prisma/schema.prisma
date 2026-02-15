@@ -18,26 +18,26 @@ enum PlatformType {
 
 // Workspace configuration per platform workspace (guild, team, etc.)
 model WorkspaceConfig {
-  id                  String       @id @default(cuid())
-  workspaceId         String       @unique // Platform-agnostic workspace ID
+  id                  String   @id @default(cuid())
+  workspaceId         String   @unique // Platform-agnostic workspace ID
   platformType        PlatformType @default(DISCORD) // Platform discriminator
   managementChannelId String
   teamRoleMention     String
-  timezone            String       @default("Africa/Lagos")
-  windowOpenTime      String       @default("09:00") // HH:MM format
-  windowCloseTime     String       @default("16:00") // HH:MM format
-  reminderTimes       String[]     @default(["10:00", "12:00", "14:00"]) // HH:MM format
+  timezone            String   @default("Africa/Lagos")
+  windowOpenTime      String   @default("09:00") // HH:MM format
+  windowCloseTime     String   @default("16:00") // HH:MM format
+  reminderTimes       String[] @default(["10:00", "12:00", "14:00"]) // HH:MM format
   notionParentPageId  String?
   googleSpreadsheetId String?
-  retentionDays       Int          @default(1825) // 5 years default
-  platformMetadata    Json?        // Platform-specific metadata (for future extensibility)
+  retentionDays       Int      @default(1825) // 5 years default
+  platformMetadata    Json?    // Platform-specific metadata (for future extensibility)
 
   // Legacy field for backward compatibility (deprecated, use workspaceId)
-  guildId             String?      @unique
+  guildId             String?  @unique
 
-  rosterMembers RosterMember[]
-  standupRuns    StandupRun[]
-  auditEvents    AuditEvent[]
+  rosterMembers       RosterMember[]
+  standupRuns         StandupRun[]
+  auditEvents         AuditEvent[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -68,11 +68,11 @@ model RosterMember {
 
 // Date ranges when users are excused from standup
 model Excusal {
-  id             String   @id @default(cuid())
+  id        String   @id @default(cuid())
   rosterMemberId String
-  startDate      DateTime // Start of absence (inclusive)
-  endDate        DateTime // End of absence (inclusive)
-  reason         String
+  startDate DateTime // Start of absence (inclusive)
+  endDate   DateTime // End of absence (inclusive)
+  reason    String
 
   rosterMember RosterMember @relation(fields: [rosterMemberId], references: [id], onDelete: Cascade)
 
@@ -84,7 +84,7 @@ model Excusal {
 // Daily standup run state
 model StandupRun {
   id          String   @id @default(cuid())
-  workspaceId String   // Foreign key to WorkspaceConfig.workspaceId
+  workspaceId String // Foreign key to WorkspaceConfig.workspaceId
   runDate     DateTime // Date in workspace timezone
   status      RunStatus @default(OPEN)
   closedAt    DateTime?
@@ -107,19 +107,19 @@ enum RunStatus {
 
 // Individual user responses to a standup run
 model StandupResponse {
-  id             String          @id @default(cuid())
+  id             String            @id @default(cuid())
   runId          String
   rosterMemberId String
-  status         ResponseStatus  @default(PENDING)
-  answers        Json            // Structured answers per schema
+  status         ResponseStatus   @default(PENDING)
+  answers        Json              // Structured answers per schema
   submittedAt    DateTime?
   dmError        String?
 
-  run          StandupRun   @relation(fields: [runId], references: [id], onDelete: Cascade)
-  rosterMember RosterMember @relation(fields: [rosterMemberId], references: [id], onDelete: Cascade)
+  run           StandupRun    @relation(fields: [runId], references: [id], onDelete: Cascade)
+  rosterMember  RosterMember  @relation(fields: [rosterMemberId], references: [id], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   @@unique([runId, rosterMemberId])
   @@index([runId, status])
@@ -136,19 +136,19 @@ enum ResponseStatus {
 
 // Delivery jobs for external systems
 model DeliveryJob {
-  id            String         @id @default(cuid())
-  runId         String
-  destination   Destination
-  status        DeliveryStatus @default(PENDING)
-  attemptCount  Int            @default(0)
+  id           String        @id @default(cuid())
+  runId        String
+  destination  Destination
+  status       DeliveryStatus @default(PENDING)
+  attemptCount Int           @default(0)
   nextAttemptAt DateTime?
-  lastError     String?
-  completedAt   DateTime?
+  lastError    String?
+  completedAt  DateTime?
 
-  run StandupRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  run          StandupRun    @relation(fields: [runId], references: [id], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   @@index([runId, destination])
   @@index([status, nextAttemptAt])
@@ -171,20 +171,20 @@ enum DeliveryStatus {
 
 // Audit trail for admin actions
 model AuditEvent {
-  id          String      @id @default(cuid())
+  id          String        @id @default(cuid())
   workspaceId String
   actionType  AuditAction
-  actorId     String      // Platform user ID
+  actorId     String        // Platform user ID
   actorName   String
-  targetId    String?     // ID of affected entity
-  targetType  String?     // Type of affected entity
-  details     Json?       // Additional context
+  targetId    String?       // ID of affected entity
+  targetType  String?       // Type of affected entity
+  details     Json?         // Additional context
   ipAddress   String?
   userAgent   String?
 
-  workspace WorkspaceConfig @relation(fields: [workspaceId], references: [workspaceId], onDelete: Cascade)
+  workspace   WorkspaceConfig @relation(fields: [workspaceId], references: [workspaceId], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
+  createdAt   DateTime      @default(now())
 
   @@index([workspaceId, actionType, createdAt])
 }

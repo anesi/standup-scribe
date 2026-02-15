@@ -1,0 +1,44 @@
+{
+  "name": "@standup-scribe/core",
+  "version": "1.0.0",
+  "description": "Core platform-agnostic business logic for Standup Scribe",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "exports": {
+    ".": "./dist/src/index.js",
+    "./workers": "./dist/src/workers/index.js",
+    "./workers/*": "./dist/src/workers/*",
+    "./services": "./dist/src/services/index.js",
+    "./services/*": "./dist/src/services/*",
+    "./utils": "./dist/src/utils/index.js",
+    "./utils/*": "./dist/src/utils/*",
+    "./types": "./dist/src/types/index.js",
+    "./types/*": "./dist/src/types/*",
+    "./dist/src/utils/error-handling": "./dist/src/utils/error-handling.js",
+    "./dist/src/utils/constants": "./dist/src/utils/constants.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "standup",
+    "core",
+    "platform-agnostic"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "@standup-scribe/database": "workspace:*",
+    "@standup-scribe/integrations": "workspace:*",
+    "@standup-scribe/platform-discord": "workspace:*",
+    "luxon": "^3.5.0"
+  },
+  "devDependencies": {
+    "@types/luxon": "^3.4.2",
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  }
+}

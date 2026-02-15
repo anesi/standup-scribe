@@ -1,0 +1,38 @@
+{
+  "name": "@standup-scribe/platform-discord",
+  "version": "1.0.0",
+  "description": "Discord platform adapter for Standup Scribe",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "exports": {
+    ".": "./dist/src/index.js",
+    "./commands": "./dist/src/commands/index.js",
+    "./scheduler": "./dist/src/scheduler/index.js",
+    "./components": "./dist/src/components/index.js",
+    "./client/discord": "./dist/src/client/discord.js",
+    "./deliveries": "./dist/src/deliveries/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "discord",
+    "platform-adapter"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@standup-scribe/core": "workspace:*",
+    "@standup-scribe/database": "workspace:*",
+    "@standup-scribe/integrations": "workspace:*",
+    "discord.js": "^14.14.1",
+    "luxon": "^3.5.0"
+  },
+  "devDependencies": {
+    "@types/luxon": "^3.4.2",
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  }
+}

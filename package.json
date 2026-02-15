@@ -1,43 +1,42 @@
 {
-  "name": "discord-standup-bot",
+  "name": "standup-scribe",
   "version": "1.0.0",
-  "description": "Discord-first standup bot that DMs participants, collects structured updates, and publishes daily reports",
-  "main": "dist/index.js",
+  "description": "Platform-agnostic standup bot supporting Discord and Slack",
+  "private": true,
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "prisma:studio": "prisma studio",
-    "lint": "eslint src --ext .ts",
-    "format": "prettier --write \"src/**/*.ts\""
+    "dev": "pnpm --filter @standup-scribe/app-discord dev",
+    "dev:slack": "pnpm --filter @standup-scribe/app-slack dev",
+    "build": "pnpm -r build",
+    "build:discord": "pnpm -r --filter @standup-scribe/database --filter @standup-scribe/core --filter @standup-scribe/integrations --filter @standup-scribe/platform-discord --filter @standup-scribe/app-discord build",
+    "build:slack": "echo 'Slack build disabled'",
+    "start": "pnpm --filter @standup-scribe/app-discord start",
+    "start:slack": "pnpm --filter @standup-scribe/app-slack start",
+    "prisma:generate": "pnpm --filter @standup-scribe/database prisma:generate",
+    "prisma:migrate": "pnpm --filter @standup-scribe/database prisma:migrate",
+    "prisma:studio": "pnpm --filter @standup-scribe/database prisma:studio",
+    "lint": "eslint packages --ext .ts",
+    "format": "prettier --write \"packages/**/*.ts\"",
+    "clean": "pnpm -r clean"
   },
   "keywords": [
-    "discord",
     "standup",
-    "bot"
+    "discord",
+    "slack",
+    "bot",
+    "monorepo"
   ],
   "author": "",
   "license": "MIT",
-  "dependencies": {
-    "@notionhq/client": "^2.2.15",
-    "@prisma/client": "^5.22.0",
-    "discord.js": "^14.14.1",
-    "dotenv": "^16.4.5",
-    "google-auth-library": "^10.5.0",
-    "googleapis": "^144.0.0",
-    "luxon": "^3.5.0"
-  },
   "devDependencies": {
-    "@types/luxon": "^3.4.2",
-    "@types/node": "^22.10.2",
     "@typescript-eslint/eslint-plugin": "^8.18.2",
     "@typescript-eslint/parser": "^8.18.2",
     "eslint": "^9.17.0",
     "prettier": "^3.4.2",
-    "prisma": "^5.22.0",
-    "tsx": "^4.19.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
   }
 }

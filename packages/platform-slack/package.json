@@ -1,0 +1,31 @@
+{
+  "name": "@standup-scribe/platform-slack",
+  "version": "1.0.0",
+  "description": "Slack platform adapter for Standup Scribe",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "slack",
+    "platform-adapter"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@slack/bolt": "^3.14.0",
+    "@slack/web-api": "^7.0.0",
+    "@standup-scribe/core": "workspace:*",
+    "@standup-scribe/database": "workspace:*",
+    "@standup-scribe/integrations": "workspace:*",
+    "luxon": "^3.5.0"
+  },
+  "devDependencies": {
+    "@types/luxon": "^3.4.2",
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  }
+}
