@@ -4,6 +4,15 @@
 
 This bot automates daily standup collection for your team. It DMs team members, collects responses via interactive forms, and publishes reports to Discord, Google Sheets, or Notion.
 
+## Implementation Status
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Discord DM Collection | ✅ Verified | Full 13-question modal flow tested |
+| Discord Report Delivery | ✅ Verified | Posts to management channel with formatting |
+| Google Sheets Integration | ✅ Verified | Creates new tab per day with all responses |
+| Notion Integration | ⚠️ Not Tested | Implemented but not verified in production |
+
 ## What You'll Need to Set Up
 
 ### 1. Discord Bot Application (5 minutes)
@@ -28,11 +37,12 @@ This bot automates daily standup collection for your team. It DMs team members, 
 1. In Discord: **User Settings** → **Advanced** → Enable **Developer Mode**
 2. Right-click your server → **Copy ID**
 
-### 4. Set Up Database (Neon) - Free Tier Available
+### 4. Set Up Database
 
-1. Go to https://console.neon.tech
-2. Sign up/login → Click **"Create a project"**
-3. Copy the **Connection String** (looks like: `postgresql://...`)
+Choose any PostgreSQL hosting provider (Supabase, Railway, Neon, AWS RDS, etc.):
+
+1. Create a PostgreSQL database with your chosen provider
+2. Copy the **Connection String** (looks like: `postgresql://...`)
 
 ### 5. Deploy to CapRover (5 minutes)
 

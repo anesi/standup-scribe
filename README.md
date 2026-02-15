@@ -2,6 +2,16 @@
 
 A Discord bot that automates daily standup collection for teams. Members receive DMs, submit responses via modals, and reports are delivered to your management channel, Notion, or Google Sheets.
 
+## Implementation Status
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Discord DM Collection | ✅ Verified | Full 13-question modal flow tested |
+| Discord Report Delivery | ✅ Verified | Posts to management channel with formatting |
+| Google Sheets Integration | ✅ Verified | Creates new tab per day with all responses |
+| Notion Integration | ⚠️ Not Tested | Implemented but not verified in production |
+| CSV Export | ⚠️ Not Tested | Implemented but not verified in production |
+
 ## Features
 
 - **Automated DM Workflow**: DMs team members at scheduled time to collect standup responses
@@ -17,7 +27,7 @@ A Discord bot that automates daily standup collection for teams. Members receive
 - **Runtime**: Node.js LTS + TypeScript
 - **Discord**: discord.js v14
 - **Database**: PostgreSQL + Prisma ORM
-- **Timezone**: Luxon
+- **Timezone Handling**: Luxon (for timezone-aware scheduling)
 - **Google**: googleapis (Sheets API)
 - **Notion**: @notionhq/client
 - **Deployment**: Docker (CapRover compatible)
@@ -57,12 +67,19 @@ A Discord bot that automates daily standup collection for teams. Members receive
 2. Right-click your server name
 3. Select **Copy ID**
 
-### 4. Set Up Database (Neon - Recommended)
+### 4. Set Up Database
 
-1. Go to [Neon Console](https://console.neon.tech)
-2. Create a new project (free tier available)
-3. Copy your **Connection String**
-4. Format: `postgresql://user:password@host/database?sslmode=require`
+Choose any PostgreSQL hosting provider. Popular options include:
+
+- **Supabase** - Free tier available, easy setup
+- **Railway** - Simple PostgreSQL service
+- **Neon** - Serverless Postgres with free tier
+- **AWS RDS** - For production workloads
+- **Digital Ocean Managed Database** - Good performance/price ratio
+
+1. Create a PostgreSQL database with your chosen provider
+2. Copy your **Connection String**
+3. Format: `postgresql://user:password@host/database?sslmode=require`
 
 ### 5. Set Up Google Sheets (Optional)
 
