@@ -4,7 +4,7 @@ import { commands, getCommandData } from './commands';
 import { startScheduler } from './scheduler';
 import { startDeliveryWorker } from './deliveries';
 import { startCleanupWorker } from './workers/cleanup-worker';
-import { handleStandupInteraction, handleStandupAnswer } from './components/standup-flow';
+import { handleStandupInteraction, handleStandupAnswer, handleModalSubmit } from './components/standup-flow';
 
 // Load environment variables
 dotenv.config();
@@ -52,82 +52,119 @@ async function main() {
 
   await discordClient.registerCommands(getCommandData(), clientId, guildId);
 
-  // Set up interaction handler for buttons
+  // Set up interaction handler for buttons and modals
   const client = discordClient.getRawClient();
 
   client.on('interactionCreate', async (interaction) => {
+    // Handle modals
+    if (interaction.isModalSubmit()) {
+      try {
+        if (!interaction.customId.startsWith('standup:modal:')) {
+          await interaction.reply({ content: 'Unknown modal', ephemeral: true });
+          return;
+        }
+
+        // Extract form data from modal
+        const formData: { [key: string]: string } = {};
+        interaction.fields.fields.forEach((field: any) => {
+          formData[field.customId] = field.value;
+        });
+
+        const result = await handleModalSubmit(
+          interaction.customId,
+          interaction.user.id,
+          formData,
+        );
+
+        if (result) {
+          if ('modal' in result) {
+            // Cannot show modal from modal submit directly
+            // Send a reply with a button to open the next modal
+            await interaction.reply({
+              content: 'Continue to the next step...',
+              components: [],
+              ephemeral: true,
+            });
+            // Note: Discord doesn't allow showing another modal from a modal submit
+            // The user will need to use the "Continue" button from the original message
+          } else if (result.components) {
+            await interaction.reply({
+              content: result.content,
+              components: result.components,
+              ephemeral: true,
+            });
+          } else {
+            await interaction.reply({
+              content: result.content,
+              ephemeral: true,
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error handling modal submission:', error);
+        const errorMessage = 'An error occurred processing your request.';
+        if (interaction.deferred || interaction.replied) {
+          await interaction.followUp({ content: errorMessage, ephemeral: true });
+        } else {
+          await interaction.reply({ content: errorMessage, ephemeral: true });
+        }
+      }
+      return;
+    }
+
+    // Handle buttons
     if (!interaction.isButton()) return;
 
     try {
       const customId = interaction.customId;
 
       // Handle standup flow start/continue buttons
-      if (customId.startsWith('standup_start_') || customId.startsWith('standup_continue_')) {
-        await interaction.deferReply();
+      if (customId.startsWith('standup:start:') || customId.startsWith('standup:continue:')) {
         const result = await handleStandupInteraction(
           customId,
           interaction.user.id,
           interaction.user,
         );
 
-        if (result.components) {
-          await interaction.editReply({
+        if ('modal' in result) {
+          await interaction.showModal(result.modal);
+        } else if (result.components) {
+          await interaction.reply({
             content: result.content,
             components: result.components,
+            ephemeral: true,
           });
         } else {
-          await interaction.editReply({
+          await interaction.reply({
             content: result.content,
+            ephemeral: true,
           });
         }
         return;
       }
 
-      // Handle standup flow navigation buttons
+      // Handle standup flow navigation buttons (Nil, Back, Submit)
       if (
-        customId.startsWith('standup_next_') ||
-        customId.startsWith('standup_back_') ||
-        customId.startsWith('standup_nil_') ||
-        customId.startsWith('standup_quickdate_') ||
-        customId.startsWith('standup_submit_confirm')
+        customId.startsWith('standup:next:') ||
+        customId.startsWith('standup:back:') ||
+        customId.startsWith('standup:nil:') ||
+        customId.startsWith('standup:submit:')
       ) {
-        await interaction.deferUpdate();
+        const result = await handleStandupAnswer(customId, interaction.user.id, '');
 
-        let value = '';
-        if (customId.startsWith('standup_quickdate_')) {
-          value = customId.split('_').slice(3).join('_');
-        }
-
-        const result = await handleStandupAnswer(customId, interaction.user.id, value);
-
-        if (result && result.components) {
-          await interaction.editReply({
-            content: result.content,
-            components: result.components,
-          });
-        } else if (result) {
-          await interaction.editReply({
-            content: result.content,
-          });
-        }
-        return;
-      }
-
-      // Handle expectation selection buttons
-      if (customId.startsWith('standup_answer_expectations_')) {
-        await interaction.deferUpdate();
-        const value = customId.split('_').slice(3).join('_');
-        const result = await handleStandupAnswer(customId, interaction.user.id, value);
-
-        if (result && result.components) {
-          await interaction.editReply({
-            content: result.content,
-            components: result.components,
-          });
-        } else if (result) {
-          await interaction.editReply({
-            content: result.content,
-          });
+        if (result) {
+          if ('modal' in result) {
+            await interaction.showModal(result.modal);
+          } else if (result.components) {
+            await interaction.update({
+              content: result.content,
+              components: result.components,
+            });
+          } else {
+            await interaction.update({
+              content: result.content,
+            });
+          }
         }
         return;
       }

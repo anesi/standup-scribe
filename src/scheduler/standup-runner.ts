@@ -105,7 +105,7 @@ export async function runStandup(guildId: string): Promise<void> {
                 type: 2, // Button
                 style: 1, // Primary
                 label: 'Start Standup',
-                customId: `standup_start_${member.id}_${run.id}`,
+                customId: `standup:start:${member.id}:${run.id}`,
               },
             ],
           },
@@ -211,7 +211,7 @@ export async function sendReminders(guildId: string): Promise<void> {
                 type: 2,
                 style: 1,
                 label: 'Continue Standup',
-                customId: `standup_continue_${response.rosterMemberId}_${run.id}`,
+                customId: `standup:continue:${response.rosterMemberId}:${run.id}`,
               },
             ],
           },

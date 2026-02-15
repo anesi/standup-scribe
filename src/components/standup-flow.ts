@@ -2,25 +2,50 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ActionRowBuilder,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
   User,
 } from 'discord.js';
 import { prisma } from '../lib/prisma';
-import { standupStateManager, StandupAnswers } from '../services/standup-state';
-import { STEP_CONFIG, STANDUP_STEPS, StandupStep, QUICK_DATE_OPTIONS } from '../utils/constants';
+import { standupStateManager } from '../services/standup-state';
+import { STEP_CONFIG, STANDUP_STEPS, StandupStep } from '../utils/constants';
+
+// Return type for interaction handlers
+type InteractionResult =
+  | { content: string; components?: any[] }
+  | { modal: any };
 
 /**
- * Handle standup button interactions
+ * Handle standup button interactions - now opens modals
  */
 export async function handleStandupInteraction(
   customId: string,
   userId: string,
   _user: User,
-): Promise<{ content: string; components?: any[] }> {
-  // Parse custom_id: standup_start_{rosterMemberId}_{runId} or standup_continue_{rosterMemberId}_{runId}
-  const parts = customId.split('_');
+): Promise<InteractionResult> {
+  // Format: standup:start:rosterMemberId:runId or standup:continue:step:rosterMemberId:runId
+  const parts = customId.split(':');
+  if (parts.length < 4 || parts[0] !== 'standup') {
+    return { content: 'Invalid button format' };
+  }
+
   const action = parts[1]; // 'start' or 'continue'
-  const rosterMemberId = parts[2];
-  const runId = parts[3];
+  let rosterMemberId: string;
+  let runId: string;
+
+  if (action === 'start') {
+    rosterMemberId = parts[2];
+    runId = parts[3];
+  } else if (action === 'continue') {
+    // standup:continue:step:rosterMemberId:runId
+    rosterMemberId = parts[3];
+    runId = parts[4];
+  } else {
+    return {
+      content: 'Invalid action.',
+    };
+  }
 
   // Verify the user matches the roster member
   const rosterMember = await prisma.rosterMember.findUnique({
@@ -47,7 +72,7 @@ export async function handleStandupInteraction(
 
   // Get workspace config for timezone
   const config = await prisma.workspaceConfig.findUnique({
-    where: { id: run.guildId },
+    where: { guildId: run.guildId },
   });
 
   if (!config) {
@@ -64,7 +89,7 @@ export async function handleStandupInteraction(
   } else if (action === 'start' && state.currentStep !== 'what_working_on') {
     // Reset if starting fresh
     state.currentStep = 'what_working_on';
-    state.answers = {
+    (state.answers as any) = {
       what_working_on: [],
       appetite: '',
       start_date: { raw: '', iso: null },
@@ -80,41 +105,182 @@ export async function handleStandupInteraction(
     };
   }
 
-  // Show current step
-  return renderStep(state.currentStep, state.answers as StandupAnswers, config.timezone);
+  // Open modal for current step
+  return openModalForStep(state.currentStep, state.answers as any, rosterMemberId, runId);
 }
 
 /**
- * Handle answer submission for a step
+ * Handle modal submission
+ * Returns a button to continue to the next modal (since Discord doesn't allow modal from modal submit)
+ */
+export async function handleModalSubmit(
+  customId: string,
+  userId: string,
+  formData: { [key: string]: string },
+): Promise<InteractionResult | null> {
+  // Format: standup:modal:step:rosterMemberId:runId
+  const parts = customId.split(':');
+  if (parts.length < 5 || parts[0] !== 'standup' || parts[1] !== 'modal') {
+    return { content: 'Invalid modal format' };
+  }
+  const step = parts[2] as StandupStep;
+  const rosterMemberId = parts[3];
+  const runId = parts[4];
+
+  const state = await standupStateManager.getUserState(userId);
+
+  if (!state) {
+    return {
+      content: 'Session expired. Please start a new standup.',
+    };
+  }
+
+  // Get timezone for date parsing
+  const config = await prisma.workspaceConfig.findFirst({
+    where: { rosterMembers: { some: { userId } } },
+  });
+
+  const timezone = config?.timezone ?? 'utc';
+
+  // Get the value from the form
+  const value = formData.value || '';
+
+  // Save the answer
+  await standupStateManager.updateAnswer(userId, step, value, timezone);
+
+  // Move to next step
+  const currentIndex = STANDUP_STEPS.indexOf(state.currentStep);
+  if (currentIndex < STANDUP_STEPS.length - 1) {
+    const nextStep = STANDUP_STEPS[currentIndex + 1];
+    await standupStateManager.goToStep(userId, nextStep);
+
+    // If next step is confirm, show confirmation
+    if (nextStep === 'confirm') {
+      return renderConfirmation(state.answers as any, rosterMemberId, runId);
+    }
+
+    // Return a "Continue" button that will open the next modal
+    const nextConfig = STEP_CONFIG[nextStep];
+    const nextStepIndex = STANDUP_STEPS.indexOf(nextStep);
+
+    return {
+      content: `✅ Answer saved!\n\nNext: **${nextConfig.title}** (${nextStepIndex + 1}/${STANDUP_STEPS.length})`,
+      components: [
+        new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`standup:continue:${nextStep}:${rosterMemberId}:${runId}`)
+            .setLabel('Continue →')
+            .setStyle(ButtonStyle.Primary),
+        ),
+      ],
+    };
+  }
+
+  // All steps complete, show confirmation
+  return renderConfirmation(state.answers as any, rosterMemberId, runId);
+}
+
+/**
+ * Open a modal for the given step
+ */
+function openModalForStep(
+  step: StandupStep,
+  answers: any,
+  rosterMemberId: string,
+  runId: string,
+): InteractionResult {
+  const config = STEP_CONFIG[step];
+  const stepIndex = STANDUP_STEPS.indexOf(step);
+  const currentAnswer = answers[step];
+
+  const modal = new ModalBuilder()
+    .setCustomId(`standup:modal:${step}:${rosterMemberId}:${runId}`)
+    .setTitle(`Standup: ${config.title} (${stepIndex + 1}/${STANDUP_STEPS.length})`);
+
+  // Add appropriate input field based on step type
+  if (config.isList) {
+    const currentValue = Array.isArray(currentAnswer) ? currentAnswer.join('\n') : '';
+    modal.addComponents(
+      new ActionRowBuilder<any>().addComponents(
+        new TextInputBuilder()
+          .setCustomId('value')
+          .setLabel(config.title)
+          .setStyle(TextInputStyle.Paragraph)
+          .setPlaceholder('Enter each item on a new line (or type "Nil")')
+          .setRequired(false)
+          .setValue(currentValue),
+      ),
+    );
+  } else if (config.isDate) {
+    const parsed = (currentAnswer as any) as { raw: string; iso: string | null } | undefined;
+    const currentValue = parsed?.raw || '';
+    modal.addComponents(
+      new ActionRowBuilder<any>().addComponents(
+        new TextInputBuilder()
+          .setCustomId('value')
+          .setLabel(config.title)
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder('e.g., 15/02/2026, or "next Tuesday", or "Nil"')
+          .setRequired(false)
+          .setValue(currentValue),
+      ),
+    );
+  } else if (config.isSelect) {
+    modal.addComponents(
+      new ActionRowBuilder<any>().addComponents(
+        new TextInputBuilder()
+          .setCustomId('value')
+          .setLabel(config.title)
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder(config.options?.join(' or ') || 'Select an option')
+          .setRequired(false)
+          .setValue((currentAnswer as string) || ''),
+      ),
+    );
+  } else {
+    // Free text field
+    modal.addComponents(
+      new ActionRowBuilder<any>().addComponents(
+        new TextInputBuilder()
+          .setCustomId('value')
+          .setLabel(config.title)
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(false)
+          .setValue((currentAnswer as string) || ''),
+      ),
+    );
+  }
+
+  return { modal };
+}
+
+/**
+ * Handle answer submission for a step (for buttons like Nil, Back, Submit)
  */
 export async function handleStandupAnswer(
   customId: string,
   userId: string,
-  value: string,
-): Promise<{ content: string; components?: any[] } | null> {
-  const parts = customId.split('_');
+  _value: string,
+): Promise<InteractionResult | null> {
+  // Format: standup:action:step:rosterMemberId:runId or standup:submit:confirm
+  const parts = customId.split(':');
 
-  // Parse action from parts[0] or parts[0] + '_' + parts[1]
-  // Examples: 'standup_next_{step}', 'standup_back_confirm', 'standup_nil_{step}'
   let action: string;
   let step: StandupStep = 'what_working_on';
-  let stepIndex = 2;
 
   if (parts[0] === 'standup') {
-    if (parts[1] === 'answer' || parts[1] === 'nil' || parts[1] === 'next' || parts[1] === 'back') {
-      action = parts[1]; // 'answer', 'nil', 'next', 'back'
-      if (parts[2] && parts[2] !== 'confirm') {
-        step = parts[2] as StandupStep;
-        stepIndex = 3;
-      }
-    } else if (parts[1] === 'quickdate') {
-      action = 'quickdate';
+    if (parts[1] === 'nil') {
+      action = 'nil';
       step = parts[2] as StandupStep;
-      stepIndex = 3;
+    } else if (parts[1] === 'next') {
+      action = 'next';
+      step = parts[2] as StandupStep;
+    } else if (parts[1] === 'back') {
+      action = 'back';
+      step = parts[2] === 'confirm' ? 'confirm' : (parts[2] as StandupStep);
     } else if (parts[1] === 'submit') {
       action = 'submit';
     } else {
-      // Unknown action
       return null;
     }
   } else {
@@ -135,157 +301,51 @@ export async function handleStandupAnswer(
 
   const timezone = config?.timezone ?? 'utc';
 
-  // Extract value if provided (for answer/quickdate)
-  if (stepIndex < parts.length) {
-    value = parts.slice(stepIndex).join('_');
-  }
-
   // Handle different actions
-  if (action === 'answer') {
-    await standupStateManager.updateAnswer(userId, step, value, timezone);
-  } else if (action === 'nil') {
+  if (action === 'nil') {
     await standupStateManager.updateAnswer(userId, step, 'NIL', timezone);
+    // Move to next step
+    const currentIndex = STANDUP_STEPS.indexOf(state.currentStep);
+    if (currentIndex < STANDUP_STEPS.length - 1) {
+      const nextStep = STANDUP_STEPS[currentIndex + 1];
+      await standupStateManager.goToStep(userId, nextStep);
+      return openModalForStep(nextStep, state.answers as any, state.rosterMemberId, state.runId);
+    }
   } else if (action === 'next') {
     const currentIndex = STANDUP_STEPS.indexOf(state.currentStep);
     if (currentIndex < STANDUP_STEPS.length - 1) {
       const nextStep = STANDUP_STEPS[currentIndex + 1];
       await standupStateManager.goToStep(userId, nextStep);
-      return renderStep(nextStep, state.answers as StandupAnswers, timezone);
+      return openModalForStep(nextStep, state.answers as any, state.rosterMemberId, state.runId);
     }
   } else if (action === 'back') {
     const currentIndex = STANDUP_STEPS.indexOf(state.currentStep);
     if (currentIndex > 0) {
       const prevStep = STANDUP_STEPS[currentIndex - 1];
       await standupStateManager.goToStep(userId, prevStep);
-      return renderStep(prevStep, state.answers as StandupAnswers, timezone);
+      return openModalForStep(prevStep, state.answers as any, state.rosterMemberId, state.runId);
+    } else {
+      // Can't go back from first step
+      return openModalForStep(state.currentStep, state.answers as any, state.rosterMemberId, state.runId);
     }
   } else if (action === 'submit') {
     await standupStateManager.submit(userId);
     return {
       content: '✅ Thank you! Your standup has been submitted.',
     };
-  } else if (action === 'quickdate') {
-    await standupStateManager.updateAnswer(userId, step, value, timezone);
-    // Auto-advance to next step after quick date selection
-    const currentIndex = STANDUP_STEPS.indexOf(state.currentStep);
-    if (currentIndex < STANDUP_STEPS.length - 1) {
-      const nextStep = STANDUP_STEPS[currentIndex + 1];
-      await standupStateManager.goToStep(userId, nextStep);
-      return renderStep(nextStep, state.answers as StandupAnswers, timezone);
-    }
   }
 
-  // Re-render current step
-  return renderStep(state.currentStep, state.answers as StandupAnswers, timezone);
-}
-
-/**
- * Render a standup step
- */
-function renderStep(
-  step: StandupStep,
-  answers: StandupAnswers,
-  _timezone: string,
-): { content: string; components?: any[] } {
-  if (step === 'confirm') {
-    return renderConfirmation(answers);
-  }
-
-  const config = STEP_CONFIG[step];
-  const stepIndex = STANDUP_STEPS.indexOf(step);
-  const totalSteps = STANDUP_STEPS.length;
-  const currentAnswer = answers[step];
-
-  let content = `**Step ${stepIndex + 1}/${totalSteps}: ${config.title}**\n\n`;
-
-  // Show current answer if exists
-  if (config.isList && Array.isArray(currentAnswer) && currentAnswer.length > 0) {
-    content += '**Your answers:**\n' + currentAnswer.map((a) => `• ${a}`).join('\n') + '\n\n';
-  } else if (!config.isList && !config.isDate && !config.isSelect && currentAnswer) {
-    content += `**Your answer:** ${currentAnswer}\n\n`;
-  } else if (config.isDate && currentAnswer && (currentAnswer as any).raw) {
-    const parsed = currentAnswer as { raw: string; iso: string | null };
-    content += `**Your answer:** ${parsed.raw || 'Nil'}\n\n`;
-  } else if (config.isSelect && currentAnswer) {
-    content += `**Your answer:** ${currentAnswer}\n\n`;
-  }
-
-  content += 'Please enter your response below:';
-
-  const components: any[] = [];
-
-  if (config.isList) {
-    // Add "Nil" button for list fields
-    components.push(
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId(`standup_nil_${step}`)
-          .setLabel('Mark as Nil')
-          .setStyle(ButtonStyle.Secondary),
-      ),
-    );
-  }
-
-  if (config.isDate) {
-    // Quick date buttons
-    const dateButtons = QUICK_DATE_OPTIONS.map((date) =>
-      new ButtonBuilder()
-        .setCustomId(`standup_quickdate_${step}_${date}`)
-        .setLabel(date)
-        .setStyle(ButtonStyle.Primary),
-    );
-
-    // Split into rows of 4 (max buttons per row)
-    for (let i = 0; i < dateButtons.length; i += 4) {
-      components.push(
-        new ActionRowBuilder<ButtonBuilder>().addComponents(dateButtons.slice(i, i + 4)),
-      );
-    }
-  }
-
-  if (config.isSelect && config.options) {
-    const selectButtons = config.options.map((opt) =>
-      new ButtonBuilder()
-        .setCustomId(`standup_answer_${step}_${opt}`)
-        .setLabel(opt)
-        .setStyle(ButtonStyle.Primary),
-    );
-
-    for (let i = 0; i < selectButtons.length; i += 4) {
-      components.push(
-        new ActionRowBuilder<ButtonBuilder>().addComponents(selectButtons.slice(i, i + 4)),
-      );
-    }
-  }
-
-  // Navigation buttons
-  const navRow = new ActionRowBuilder<ButtonBuilder>();
-
-  if (stepIndex > 0) {
-    navRow.addComponents(
-      new ButtonBuilder()
-        .setCustomId(`standup_back_${step}`)
-        .setLabel('← Back')
-        .setStyle(ButtonStyle.Secondary),
-    );
-  }
-
-  navRow.addComponents(
-    new ButtonBuilder()
-      .setCustomId(`standup_next_${step}`)
-      .setLabel(stepIndex === totalSteps - 2 ? 'Review →' : 'Next →')
-      .setStyle(ButtonStyle.Primary),
-  );
-
-  components.push(navRow);
-
-  return { content, components };
+  return null;
 }
 
 /**
  * Render confirmation step
  */
-function renderConfirmation(answers: StandupAnswers): { content: string; components?: any[] } {
+function renderConfirmation(
+  answers: any,
+  rosterMemberId: string,
+  runId: string,
+): InteractionResult {
   let content = '**Please review your standup:**\n\n';
 
   const sections: Array<{ title: string; value: any }> = [
@@ -327,15 +387,23 @@ function renderConfirmation(answers: StandupAnswers): { content: string; compone
   const components = [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
-        .setCustomId('standup_back_confirm')
+        .setCustomId(`standup:back:confirm:${rosterMemberId}:${runId}`)
         .setLabel('← Edit')
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
-        .setCustomId('standup_submit_confirm')
+        .setCustomId('standup:submit:confirm')
         .setLabel('✓ Submit Standup')
         .setStyle(ButtonStyle.Success),
     ),
   ];
 
   return { content, components };
+}
+
+/**
+ * Get current answers for display
+ */
+export function getAnswersDisplay(userId: string): any {
+  const state = standupStateManager.getAnswers(userId);
+  return state;
 }

@@ -41,7 +41,7 @@ model RosterMember {
   displayName String
   isActive  Boolean  @default(true)
 
-  guild     WorkspaceConfig @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  guild     WorkspaceConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
 
   excusals       Excusal[]
   standupResponses StandupResponse[]
@@ -75,7 +75,7 @@ model StandupRun {
   status    RunStatus @default(OPEN)
   closedAt  DateTime?
 
-  guild     WorkspaceConfig @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  guild     WorkspaceConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
   responses StandupResponse[]
   deliveryJobs DeliveryJob[]
 
@@ -167,7 +167,7 @@ model AuditEvent {
   ipAddress   String?
   userAgent   String?
 
-  guild       WorkspaceConfig @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  guild       WorkspaceConfig @relation(fields: [guildId], references: [guildId], onDelete: Cascade)
 
   createdAt   DateTime      @default(now())
 
