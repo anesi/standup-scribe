@@ -1,11 +1,12 @@
-# Discord Standup Bot
+# Standup Scribe - Discord Standup Bot
 
-A Discord-first standup bot that DMs participants, collects structured updates, and publishes daily reports to Discord, Google Sheets, Notion, and CSV.
+A Discord bot that automates daily standup collection for teams. Members receive DMs, submit responses via modals, and reports are delivered to your management channel, Notion, or Google Sheets.
 
 ## Features
 
 - **Automated DM Workflow**: DMs team members at scheduled time to collect standup responses
 - **13-Step Guided Flow**: Structured questions covering work progress, risks, decisions, and more
+- **DM Subscription Verification**: `/standup subscribe` command ensures users can receive DMs
 - **Multiple Destinations**: Publishes reports to Discord, Google Sheets, Notion, and CSV
 - **Excusal Management**: Handle team absences with date-range excusals
 - **Delivery Reliability**: Automatic retries with exponential backoff for failed deliveries
@@ -19,155 +20,171 @@ A Discord-first standup bot that DMs participants, collects structured updates, 
 - **Timezone**: Luxon
 - **Google**: googleapis (Sheets API)
 - **Notion**: @notionhq/client
+- **Deployment**: Docker (CapRover compatible)
 
-## Prerequisites: External Resource Setup
+## Quick Start for Your Team
 
-### 1. Discord Bot Application Setup
+### 1. Create Your Discord Bot Application
 
-1. Go to https://discord.com/developers/applications
-2. Create new application
-3. Under "Bot" section:
-   - Create bot
-   - Enable **MESSAGE CONTENT INTENT**
-   - Enable **SERVER MEMBERS INTENT**
-   - Copy bot token (for `DISCORD_TOKEN`)
-4. Under "OAuth2" > "URL Generator":
-   - Scopes: `bot`, `applications.commands`
-   - Permissions: `Manage Guild`, `Send Messages`, `Embed Links`, `Use Slash Commands`
-   - Use generated URL to invite bot to server
-5. **Copy Application ID**:
-   - In Discord Developer Portal, go to your application's **General Information** page
-   - Copy the Application ID shown at the top
-6. **Copy Guild (Server) ID**:
-   - In Discord, enable **Developer Mode** (User Settings > Advanced)
-   - Right-click on your server name in the left sidebar
-   - Select **Copy ID**
+**Important**: Your team should create their own Discord bot application:
 
-### 2. PostgreSQL Database Setup
+1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
+2. Click **"New Application"** → Give it a name (e.g., "Team Standup Bot")
+3. Go to **"Bot"** section → Click **"Add Bot"**
+4. Under **"Privileged Gateway Intents"**, enable:
+   - ✅ Message Content Intent
+   - ✅ Server Members Intent
+5. Click **"Reset Token"** and copy your bot token
 
-1. Install PostgreSQL locally OR use cloud provider (Supabase, Railway, Neon)
-2. Create database for the bot
-3. Get connection string for `DATABASE_URL`
+### 2. Invite Bot to Your Server
 
-### 3. Google Sheets Setup
+1. Go to **"OAuth2"** → **"URL Generator"**
+2. Select scopes:
+   - `bot`
+   - `applications.commands`
+3. Select bot permissions:
+   - Send Messages
+   - Embed Links
+   - Use Slash Commands
+   - Manage Channels (optional)
+   - Read Messages/View Channels
+4. Copy the generated URL and open it in your browser
+5. Authorize the bot for your server
 
-1. Go to Google Cloud Console (console.cloud.google.com)
-2. Create project
-3. Enable "Google Sheets API"
-4. Create Service Account:
-   - Go to "IAM & Admin" > "Service Accounts"
-   - Create service account
-   - Download JSON key (for `GOOGLE_SERVICE_ACCOUNT_JSON`)
-5. Create spreadsheet in Google Sheets
-6. Share spreadsheet with service account email (Editor permission)
-7. Copy spreadsheet ID from URL (for `GOOGLE_SHEETS_SPREADSHEET_ID`)
+### 3. Get Your Server ID
 
-### 4. Notion Setup
+1. In Discord, enable **Developer Mode** (User Settings → Advanced)
+2. Right-click your server name
+3. Select **Copy ID**
 
-1. Go to https://www.notion.so/my-integrations
-2. Create new integration ("Discord Standup Bot")
-3. Copy "Internal Integration Token" (for `NOTION_TOKEN`)
-4. Create parent page in Notion workspace
-5. Share page with integration (click "..." > "Add connections")
-6. Copy page ID from URL (for `NOTION_PARENT_PAGE_ID`)
+### 4. Set Up Database (Neon - Recommended)
 
-## Installation
+1. Go to [Neon Console](https://console.neon.tech)
+2. Create a new project (free tier available)
+3. Copy your **Connection String**
+4. Format: `postgresql://user:password@host/database?sslmode=require`
 
-1. Clone the repository
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+### 5. Set Up Google Sheets (Optional)
 
-3. Copy `.env.example` to `.env` and fill in your values:
-   ```bash
-   cp .env.example .env
-   ```
+1. Go to [Google Cloud Console](https://console.cloud.google.com)
+2. Create a new project
+3. Enable **Google Sheets API**
+4. Go to **IAM & Admin** → **Service Accounts**
+5. Create service account
+6. Download JSON key file
+7. Share your spreadsheet with the service account email (Editor permission)
+8. Copy spreadsheet ID from URL
 
-4. Set up environment variables:
-   ```bash
-   # Discord
-   DISCORD_TOKEN=your_bot_token_here
+### 6. Deploy to CapRover
 
-   # Database
-   DATABASE_URL=postgresql://user:password@host:5432/dbname
+#### Prerequisites
+- Access to your team's CapRover instance
+- The bot code (fork this repository)
 
-   # Notion (optional)
-   NOTION_TOKEN=your_notion_token
-   NOTION_PARENT_PAGE_ID=your_page_id
+#### Deployment Steps
 
-   # Google Sheets (optional)
-   GOOGLE_SHEETS_SPREADSHEET_ID=your_sheet_id
-   GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
+1. **Fork this repository** to your GitHub account
 
-   # Environment
-   ENVIRONMENT=staging  # or 'prod'
-   ```
+2. **Create a new app in CapRover**:
+   - Log in to CapRover dashboard
+   - Click **"Create New App"**
+   - Name it (e.g., `standup-bot`)
 
-5. Run database migrations:
-   ```bash
-   npm run prisma:migrate
-   ```
+3. **Configure deployment from GitHub**:
+   - Go to **"App Config"** → **"Deployment Method"**
+   - Select **"GitHub"**
+   - Connect your GitHub account
+   - Select your forked repository
+   - Select branch (usually `main`)
 
-6. Generate Prisma client:
-   ```bash
-   npm run prisma:generate
-   ```
+4. **Configure environment variables** (see below)
 
-## Usage
+5. **Deploy**:
+   - Click **"Deploy Latest Commit"**
+   - Wait for deployment to complete
 
-### Development
+### 7. Configure Environment Variables
 
+In CapRover, go to your app → **"Config"** → **"Environment Variables"**:
+
+| Variable | Description | Example | Required |
+|----------|-------------|---------|----------|
+| `DISCORD_TOKEN` | Your Discord bot token | `MTQ3MjU...` | ✅ Yes |
+| `DATABASE_URL` | Neon PostgreSQL connection string | `postgresql://...` | ✅ Yes |
+| `TEST_GUILD_ID` | Your server ID | `957861579788009523` | ✅ Yes |
+| `ENVIRONMENT` | Environment name | `production` | ✅ Yes |
+| `NOTION_TOKEN` | Notion integration token | `secret_...` | ❌ No |
+| `NOTION_PARENT_PAGE_ID` | Notion page ID | `abc123...` | ❌ No |
+| `GOOGLE_SHEETS_SPREADSHEET_ID` | Sheet ID | `16jqBSoN...` | ❌ No |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | Service account JSON | `{"type":"..."}` | ❌ No |
+
+**For `GOOGLE_SERVICE_ACCOUNT_JSON`**: Convert the JSON to a single line:
 ```bash
-npm run dev
+cat your-service-account.json | jq -c
 ```
 
-### Production
+### 8. Run Database Migrations
 
-```bash
-npm run build
-npm start
-```
+1. SSH into your CapRover container (or use CapRover's terminal)
+2. Run:
+   ```bash
+   npx prisma migrate deploy
+   ```
 
-## Commands
+### 9. Initial Setup in Discord
 
-### Setup
+Once deployed, run this in your Discord server:
 
 ```
 /standup setup
 ```
-Configure workspace settings including:
-- Management channel for reports
-- Team role mention
-- Timezone
-- Window times (default 09:00-16:00)
-- Reminder times
-- Notion/Google Sheets integration
 
-### Roster Management
+Configure:
+- **Channel**: Where to post standup reports
+- **Team Role**: Role to mention (e.g., `@team`)
+- **Timezone**: Your team's timezone (e.g., `Africa/Lagos`)
+- **Window**: Standup open hours (e.g., `09:00` - `16:00`)
+- **Reminders**: When to remind non-responders (e.g., `10:00,12:00,14:00`)
 
-```
-/standup roster add @user
-/standup roster remove @user
-/standup roster list
-```
-
-### Excusal Management
+### 10. Add Team Members
 
 ```
-/standup excuse add @user start:YYYY-MM-DD end:YYYY-MM-DD reason:text
-/standup excuse remove @user date:YYYY-MM-DD
-/standup excuse list [@user]
+/roster add @username
+/roster list
 ```
 
-### Run Control
+### 11. Verify DMs Work
+
+Tell team members to run:
 
 ```
-/standup run              # Manually open today's run
-/standup close            # Close and publish reports
-/standup status [date]    # Check delivery status
-/standup resend [date] [destination]  # Retry failed delivery
-/standup export from:YYYY-MM-DD to:YYYY-MM-DD  # Export to CSV
+/standup subscribe
+```
+
+This tests if they can receive DMs and provides instructions if DMs are blocked.
+
+## Usage
+
+### For Team Members
+
+- **Daily Standup**: You'll receive a DM when standup opens
+- **Submit**: Click the "Start Standup" button and fill out the form
+- **Reminders**: If you forget, you'll get reminders at configured times
+- **Verify**: Run `/standup subscribe` to ensure DMs work
+
+### For Admins
+
+```
+/standup setup           # Configure standup settings
+/standup subscribe       # Test DM delivery
+/roster add @user        # Add team member
+/roster remove @user     # Remove team member
+/roster list             # View all members
+/excuse add @user        # Add excuse/OOO
+/excuse remove @user     # Remove excuse
+/standup run             # Manually trigger standup
+/standup close           # Close and send reports
+/standup status          # Check delivery status
 ```
 
 ## Standup Flow
@@ -188,48 +205,106 @@ When a standup run opens, each active roster member receives a DM with a "Start 
 12. Notes (free text)
 13. Submit confirmation
 
-## Schedule
+## Deployment Details
 
-The bot runs on a minute-by-minute schedule:
+### CapRover Configuration
 
-- **09:00** (weekday): Opens standup run, sends DMs to active roster members
-- **Reminder times** (configurable): Sends reminders to non-submitters
-- **16:00**: Closes run, publishes reports to all configured destinations
+The bot includes a `Dockerfile` optimized for CapRover:
 
-## Delivery Destinations
+```dockerfile
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY . .
+RUN npm run build
+CMD ["npm", "start"]
+```
 
-### Discord
-Posts to the configured management channel with:
-- Summary stats
-- Risks section
-- Decisions section
-- Links to other destinations
-- CSV attachment
+### Resource Limits (Recommended)
 
-### Google Sheets
-Creates a new tab for each day with all responses.
+- **Memory**: 512MB - 1GB
+- **CPU**: 0.5 - 1 core
+- **Restart Policy**: Always
 
-### Notion
-Creates a daily page with toggle format for each team member.
+### Domain Configuration
 
-### CSV
-Generates a CSV file in the `exports/` directory.
+1. Go to your app in CapRover
+2. Click **"Domains"**
+3. Enable **"Enable HTTPS"**
+4. Optional: Set a custom domain
+
+### Persistent Storage (Optional)
+
+If you want persistent logs:
+
+1. In CapRover, go to **"App Config"** → **"Persistent Directories"**
+2. Add mapping: `/app/logs` → `logs`
 
 ## Troubleshooting
 
-### Commands not appearing
-- Make sure you have "Manage Guild" permission
-- Wait up to 1 hour for global commands to register, or set `TEST_GUILD_ID` in `.env` for instant guild commands
+### Bot commands not appearing
 
-### DMs not being sent
-- Users must have "Allow direct messages from server members" enabled in their privacy settings
-- Check `/standup status` to see DM_FAILED errors
+1. Ensure `TEST_GUILD_ID` is set correctly in CapRover
+2. Restart the app in CapRover
+3. Commands should appear instantly with guild commands
 
-### Google Sheets/Notion failures
-- Check `/standup status` for error details
-- Use `/standup resend` to retry failed deliveries
-- Verify service account/email has proper permissions
+### DMs not being delivered
+
+1. Team member runs `/standup subscribe`
+2. If failed, they need to:
+   - Go to **Server Settings** → **Privacy Settings**
+   - Enable **"Allow direct messages from server members"**
+   - Run `/standup subscribe` again
+
+### Database connection errors
+
+1. Verify `DATABASE_URL` is correct
+2. Check Neon console for database status
+3. Ensure SSL is enabled (`sslmode=require`)
+
+### Google Sheets errors
+
+1. Verify spreadsheet is shared with service account email
+2. Check that `GOOGLE_SERVICE_ACCOUNT_JSON` is valid JSON (single line)
+3. Ensure spreadsheet ID is correct
+
+## Development
+
+### Local Development
+
+1. Clone the repository
+2. Install dependencies: `npm install`
+3. Copy `.env.example` to `.env`
+4. Fill in your environment variables
+5. Run database migrations: `npx prisma migrate dev`
+6. Start development server: `npm run dev`
+
+### Building for Production
+
+```bash
+npm run build
+npm start
+```
+
+## Project Structure
+
+```
+standup-scribe/
+├── src/
+│   ├── commands/        # Discord slash commands
+│   ├── components/      # Standup flow components
+│   ├── scheduler/       # Standup scheduler
+│   ├── deliveries/      # Report delivery
+│   ├── workers/         # Background workers
+│   ├── clients/         # Discord client
+│   └── lib/             # Utilities (Prisma, etc.)
+├── prisma/              # Database schema
+├── Dockerfile           # CapRover deployment
+├── package.json
+└── README.md
+```
 
 ## License
 
-MIT
+MIT License - feel free to use and modify for your team!
