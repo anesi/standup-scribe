@@ -1,0 +1,187 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Workspace configuration per Discord guild
+model WorkspaceConfig {
+  id                  String   @id @default(cuid())
+  guildId             String   @unique
+  managementChannelId String
+  teamRoleMention     String
+  timezone            String   @default("Africa/Lagos")
+  windowOpenTime      String   @default("09:00") // HH:MM format
+  windowCloseTime     String   @default("16:00") // HH:MM format
+  reminderTimes       String[] @default(["10:00", "12:00", "14:00"]) // HH:MM format
+  notionParentPageId  String?
+  googleSpreadsheetId String?
+  retentionDays       Int      @default(1825) // 5 years default
+
+  rosterMembers       RosterMember[]
+  standupRuns         StandupRun[]
+  auditEvents         AuditEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Active participants in the standup
+model RosterMember {
+  id        String   @id @default(cuid())
+  guildId   String
+  userId    String
+  username  String
+  displayName String
+  isActive  Boolean  @default(true)
+
+  guild     WorkspaceConfig @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  excusals       Excusal[]
+  standupResponses StandupResponse[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, userId])
+}
+
+// Date ranges when users are excused from standup
+model Excusal {
+  id        String   @id @default(cuid())
+  rosterMemberId String
+  startDate DateTime // Start of absence (inclusive)
+  endDate   DateTime // End of absence (inclusive)
+  reason    String
+
+  rosterMember RosterMember @relation(fields: [rosterMemberId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([rosterMemberId, startDate, endDate])
+}
+
+// Daily standup run state
+model StandupRun {
+  id        String   @id @default(cuid())
+  guildId   String
+  runDate   DateTime // Date in workspace timezone
+  status    RunStatus @default(OPEN)
+  closedAt  DateTime?
+
+  guild     WorkspaceConfig @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  responses StandupResponse[]
+  deliveryJobs DeliveryJob[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, runDate])
+  @@index([guildId, runDate, status])
+}
+
+enum RunStatus {
+  OPEN
+  CLOSED
+}
+
+// Individual user responses to a standup run
+model StandupResponse {
+  id         String            @id @default(cuid())
+  runId      String
+  rosterMemberId String
+  status     ResponseStatus   @default(PENDING)
+  answers    Json              // Structured answers per schema
+  submittedAt DateTime?
+  dmError    String?
+
+  run        StandupRun   @relation(fields: [runId], references: [id], onDelete: Cascade)
+  rosterMember RosterMember @relation(fields: [rosterMemberId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([runId, rosterMemberId])
+  @@index([runId, status])
+}
+
+enum ResponseStatus {
+  PENDING     // Not started
+  IN_PROGRESS // Started but not submitted
+  SUBMITTED   // Completed
+  EXCUSED     // User was excused
+  DM_FAILED   // Could not send DM
+  MISSING     // Run closed without submission
+}
+
+// Delivery jobs for external systems
+model DeliveryJob {
+  id           String        @id @default(cuid())
+  runId        String
+  destination  Destination
+  status       DeliveryStatus @default(PENDING)
+  attemptCount Int           @default(0)
+  nextAttemptAt DateTime?
+  lastError    String?
+  completedAt  DateTime?
+
+  run          StandupRun    @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([runId, destination])
+  @@index([status, nextAttemptAt])
+}
+
+enum Destination {
+  DISCORD
+  SHEETS
+  NOTION
+  CSV
+}
+
+enum DeliveryStatus {
+  PENDING
+  RETRYING
+  SUCCESS
+  FAILED
+}
+
+// Audit trail for admin actions
+model AuditEvent {
+  id          String        @id @default(cuid())
+  guildId     String
+  actionType  AuditAction
+  actorId     String        // Discord user ID
+  actorName   String
+  targetId    String?       // ID of affected entity
+  targetType  String?       // Type of affected entity
+  details     Json?         // Additional context
+  ipAddress   String?
+  userAgent   String?
+
+  guild       WorkspaceConfig @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime      @default(now())
+
+  @@index([guildId, actionType, createdAt])
+}
+
+enum AuditAction {
+  SETUP_UPDATED
+  ROSTER_ADDED
+  ROSTER_REMOVED
+  EXCUSAL_CREATED
+  EXCUSAL_REMOVED
+  RUN_MANUAL_OPEN
+  RUN_MANUAL_CLOSE
+  DELIVERY_RESEND
+  CONFIG_UPDATED
+}
