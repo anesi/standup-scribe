@@ -10,7 +10,7 @@ A Discord bot that automates daily standup collection for teams. Members receive
 | Discord Report Delivery | ✅ Verified | Posts to management channel with formatting |
 | Google Sheets Integration | ✅ Verified | Creates new tab per day with all responses |
 | Notion Integration | ⚠️ Not Tested | Implemented but not verified in production |
-| CSV Export | ⚠️ Not Tested | Implemented but not verified in production |
+| CSV Export | ✅ Verified | Tested and working in production |
 
 ## Features
 
