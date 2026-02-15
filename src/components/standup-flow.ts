@@ -195,7 +195,7 @@ function openModalForStep(
 
   const modal = new ModalBuilder()
     .setCustomId(`standup:modal:${step}:${rosterMemberId}:${runId}`)
-    .setTitle(`Standup: ${config.title} (${stepIndex + 1}/${STANDUP_STEPS.length})`);
+    .setTitle(`${stepIndex + 1}/${STANDUP_STEPS.length}: ${config.title}`);
 
   // Add appropriate input field based on step type
   if (config.isList) {

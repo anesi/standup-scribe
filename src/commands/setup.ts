@@ -5,6 +5,7 @@ import {
 } from 'discord.js';
 import { prisma } from '../lib/prisma';
 import { DateTime } from 'luxon';
+import { discordClient } from '../clients/discord';
 
 export const setupCommand = {
   data: new SlashCommandBuilder()
@@ -38,7 +39,8 @@ export const setupCommand = {
         .addStringOption((option) =>
           option.setName('sheets_id').setDescription('Google Sheets spreadsheet ID').setRequired(false),
         ),
-    ),
+    )
+    .addSubcommand((subcommand) => subcommand.setName('subscribe').setDescription('Verify you can receive standup DMs')),
 
   async execute(interaction: ChatInputCommandInteraction) {
     if (!interaction.inGuild()) {
@@ -50,6 +52,8 @@ export const setupCommand = {
 
     if (subcommand === 'setup') {
       await handleSetup(interaction);
+    } else if (subcommand === 'subscribe') {
+      await handleSubscribe(interaction);
     }
   },
 };
@@ -158,5 +162,57 @@ async function handleSetup(interaction: ChatInputCommandInteraction) {
   } catch (error) {
     console.error('Setup error:', error);
     await interaction.editReply('Failed to save configuration. Please try again.');
+  }
+}
+
+async function handleSubscribe(interaction: ChatInputCommandInteraction) {
+  await interaction.deferReply({ ephemeral: true });
+
+  const guildId = interaction.guildId!;
+
+  // Check if workspace is configured
+  const config = await prisma.workspaceConfig.findUnique({
+    where: { guildId },
+  });
+
+  if (!config) {
+    await interaction.editReply({
+      content: '❌ This server has not been configured for standups yet.\n\nAsk an admin to run `/standup setup` first.',
+    });
+    return;
+  }
+
+  const client = discordClient.getRawClient();
+
+  try {
+    // Try to send a test DM
+    const user = await client.users.fetch(interaction.user.id);
+    const dmChannel = await user.createDM();
+
+    await dmChannel.send({
+      content:
+        '✅ Test successful! You\'ll receive standup DMs.\n\n' +
+        `**Standup Schedule:** ${config.windowOpenTime} - ${config.windowCloseTime} ${config.timezone}\n` +
+        `**Reminders:** ${config.reminderTimes.join(', ')}`,
+    });
+
+    await interaction.editReply({
+      content:
+        '✅ You\'re all set! You\'ll receive standup DMs.\n\n' +
+        `**Standup Schedule:** ${config.windowOpenTime} - ${config.windowCloseTime} ${config.timezone}\n` +
+        `**Reminders:** ${config.reminderTimes.join(', ')}`,
+    });
+  } catch (error) {
+    console.error(`Failed to send test DM to ${interaction.user.id}:`, error);
+
+    await interaction.editReply({
+      content:
+        '❌ I couldn\'t send you a DM. This means you won\'t receive standup notifications.\n\n' +
+        '**To fix this:**\n' +
+        '1. Go to **Server Settings** → **Privacy Settings**\n' +
+        '2. Enable **"Allow direct messages from server members"**\n' +
+        '3. Run `/standup subscribe` again to verify\n\n' +
+        'Or, right-click the server → Privacy Settings → Allow direct messages',
+    });
   }
 }

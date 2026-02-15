@@ -41,13 +41,13 @@ export const STEP_CONFIG: Record<
     isSelect: false,
   },
   scheduled_done_date: {
-    title: 'When scheduled to be done?',
+    title: 'When is it scheduled to be done?',
     isList: false,
     isDate: true,
     isSelect: false,
   },
   actual_done_date: {
-    title: 'When actually done?',
+    title: 'When will you actually be done?',
     isList: false,
     isDate: true,
     isSelect: false,
